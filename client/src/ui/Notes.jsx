@@ -29,7 +29,7 @@ export default function Notes({ apiBase, idToken, profile, onLogout }) {
       } catch (networkErr) {
         // Network error - don't clear token, just show error
         console.error('Network error:', networkErr);
-        setError('Cannot connect to server. Make sure the server is running.');
+        
         setLoading(false);
         return;
       }
