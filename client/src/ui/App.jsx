@@ -16,43 +16,58 @@ export default function App() {
     const savedProfile = localStorage.getItem('noterverse_profile');
     
     if (savedToken) {
-      // Check if token is expired (Google ID tokens expire after 1 hour)
-      try {
-        const parts = savedToken.split('.');
-        if (parts.length !== 3) {
-          console.error('Invalid token format - wrong number of parts');
-          setIsLoading(false);
-          return;
+      // Check if this is a demo token (starts with "demo:")
+      if (savedToken.startsWith('demo:')) {
+        console.log('✅ Demo token found, restoring session');
+        setIdToken(savedToken);
+        if (savedProfile) {
+          try {
+            setProfile(JSON.parse(savedProfile));
+          } catch {
+            setProfile({ name: 'Demo User', email: '' });
+          }
+        } else {
+          setProfile({ name: 'Demo User', email: '' });
         }
-        const payload = JSON.parse(atob(parts[1]));
-        const exp = payload.exp * 1000; // Convert to milliseconds
-        const now = Date.now();
-        
-        // Add 5 minute buffer to account for clock skew
-        if (exp > (now + 5 * 60 * 1000)) {
-          // Token is still valid
-          console.log('✅ Token is valid, restoring session');
-          setIdToken(savedToken);
-          if (savedProfile) {
-            try {
-              setProfile(JSON.parse(savedProfile));
-            } catch {
-              // Fallback to extracting from token
+      } else {
+        // Check if token is expired (Google ID tokens expire after 1 hour)
+        try {
+          const parts = savedToken.split('.');
+          if (parts.length !== 3) {
+            console.error('Invalid token format - wrong number of parts');
+            setIsLoading(false);
+            return;
+          }
+          const payload = JSON.parse(atob(parts[1]));
+          const exp = payload.exp * 1000; // Convert to milliseconds
+          const now = Date.now();
+          
+          // Add 5 minute buffer to account for clock skew
+          if (exp > (now + 5 * 60 * 1000)) {
+            // Token is still valid
+            console.log('✅ Token is valid, restoring session');
+            setIdToken(savedToken);
+            if (savedProfile) {
+              try {
+                setProfile(JSON.parse(savedProfile));
+              } catch {
+                // Fallback to extracting from token
+                setProfile({ name: payload.name || '', email: payload.email || '' });
+              }
+            } else {
+              // Extract profile from token
               setProfile({ name: payload.name || '', email: payload.email || '' });
             }
           } else {
-            // Extract profile from token
-            setProfile({ name: payload.name || '', email: payload.email || '' });
+            // Token expired, clear it
+            console.log('❌ Token expired, clearing localStorage');
+            localStorage.removeItem('noterverse_idToken');
+            localStorage.removeItem('noterverse_profile');
           }
-        } else {
-          // Token expired, clear it
-          console.log('❌ Token expired, clearing localStorage');
-          localStorage.removeItem('noterverse_idToken');
-          localStorage.removeItem('noterverse_profile');
+        } catch (err) {
+          console.error('Error parsing saved token:', err);
+          // Don't clear on parse error - might be a temporary issue
         }
-      } catch (err) {
-        console.error('Error parsing saved token:', err);
-        // Don't clear on parse error - might be a temporary issue
       }
     } else {
       console.log('No saved token found');
@@ -147,9 +162,33 @@ export default function App() {
     }
   }, [googleReady, idToken]);
 
+  const handleDemoLogin = () => {
+    // Generate or retrieve a demo user ID
+    let demoUserId = localStorage.getItem('noterverse_demoUserId');
+    if (!demoUserId) {
+      // Generate a unique demo user ID
+      demoUserId = 'demo-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('noterverse_demoUserId', demoUserId);
+    }
+    
+    // Create demo token
+    const demoToken = `demo:${demoUserId}`;
+    const demoProfile = { name: 'Demo User', email: '' };
+    
+    console.log('✅ Demo login initiated');
+    // Save to localStorage
+    localStorage.setItem('noterverse_idToken', demoToken);
+    localStorage.setItem('noterverse_profile', JSON.stringify(demoProfile));
+    
+    // Update state
+    setIdToken(demoToken);
+    setProfile(demoProfile);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('noterverse_idToken');
     localStorage.removeItem('noterverse_profile');
+    // Note: We keep the demoUserId so they can continue as the same demo user if they log in again
     setIdToken(null);
     setProfile(null);
     // Also revoke Google session if possible
@@ -216,11 +255,73 @@ export default function App() {
           }}>
             Secure notes with tags, search and OCR
           </p>
-          <div id="googleButton" style={{ 
-            minHeight: '50px', 
-            display: 'inline-block',
+          
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 12, 
+            alignItems: 'center',
             marginBottom: 16
-          }} />
+          }}>
+            <div id="googleButton" style={{ 
+              minHeight: '50px', 
+              display: 'inline-block'
+            }} />
+            
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 12, 
+              width: '100%',
+              maxWidth: 250
+            }}>
+              <div style={{ 
+                flex: 1, 
+                height: '1px', 
+                backgroundColor: '#e2e8f0' 
+              }} />
+              <span style={{ 
+                color: '#94a3b8', 
+                fontSize: '0.875rem' 
+              }}>or</span>
+              <div style={{ 
+                flex: 1, 
+                height: '1px', 
+                backgroundColor: '#e2e8f0' 
+              }} />
+            </div>
+            
+            <button
+              onClick={handleDemoLogin}
+              style={{
+                width: '100%',
+                maxWidth: 250,
+                padding: '12px 24px',
+                fontSize: '1rem',
+                fontWeight: '500',
+                color: 'white',
+                backgroundColor: '#667eea',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(102, 126, 234, 0.3)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = '#5568d3';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(102, 126, 234, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = '#667eea';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(102, 126, 234, 0.3)';
+              }}
+            >
+              🎮 Try Demo Mode
+            </button>
+          </div>
+          
           {!googleReady && (
             <p style={{ 
               marginTop: 16, 

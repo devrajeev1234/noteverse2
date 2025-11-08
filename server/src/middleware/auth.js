@@ -12,13 +12,41 @@ export function authMiddleware(prisma) {
         return res.status(401).json({ error: 'Missing Authorization bearer token' });
       }
 
+      // Check if this is a demo token
+      if (token.startsWith('demo:')) {
+        const demoUserId = token.slice(5); // Remove 'demo:' prefix
+        if (!demoUserId || demoUserId.length < 8) {
+          console.log('Auth: Invalid demo token format');
+          return res.status(401).json({ error: 'Invalid demo token' });
+        }
+
+        // Create a consistent googleSub for demo users
+        const googleSub = `demo:${demoUserId}`;
+        const email = `demo-${demoUserId}@demo.noterverse`;
+        const name = 'Demo User';
+        
+        console.log('Auth: Demo login detected for user:', demoUserId);
+        
+        // Upsert demo user
+        const user = await prisma.user.upsert({
+          where: { googleSub },
+          create: { googleSub, email, name },
+          update: { email, name }
+        });
+
+        req.user = { id: user.id, googleSub, email, name };
+        next();
+        return;
+      }
+
+      // Handle Google authentication
       const clientId = process.env.GOOGLE_CLIENT_ID;
       if (!clientId) {
         console.error('Auth: GOOGLE_CLIENT_ID not set in environment');
         return res.status(500).json({ error: 'Server configuration error' });
       }
 
-      console.log('Auth: Verifying token with client ID:', clientId.substring(0, 20) + '...');
+      console.log('Auth: Verifying Google token with client ID:', clientId.substring(0, 20) + '...');
       const ticket = await client.verifyIdToken({ idToken: token, audience: clientId });
       const payload = ticket.getPayload();
       if (!payload?.sub) {
