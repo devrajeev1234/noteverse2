@@ -342,7 +342,7 @@ export default function App() {
             color: '#64748b',
             fontSize: '0.875rem'
           }}>
-            <p style={{ margin: 0 }}>🔒 Your notes are encrypted and secure</p>
+            <p style={{ margin: 0 }}>🔒 Your notes are encrypted and secure <br> Founder:Nihal, CoFounder:Dev ,CEO:Bob </p>
           </div>
         </div>
       </div>
